@@ -8,8 +8,8 @@ typedef unsigned char byte;
 class Khazard {
 public:
     Khazard(byte *key);
-    void Encrypt(uint64_t block);
-    void Decrypt(uint64_t block);
+    uint64_t Encrypt(uint64_t block);
+    uint64_t Decrypt(uint64_t block);
     static uint64_t Substitution(uint64_t a);
     static void PrintChunk(byte *chunk);
     static uint64_t LinearMul(uint64_t a);
@@ -23,7 +23,6 @@ private:
     byte static gAdd(byte a, byte b);
     byte static gMul(byte a, byte b);
     void DefineKeySeq(byte *key);
-    uint64_t DefineKey(uint64_t bp, uint64_t p, int r);
     uint64_t DefineConstSeq(int r);
     byte static GetSValue(byte a);
 };

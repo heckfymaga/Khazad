@@ -43,11 +43,14 @@ Khazard::Khazard(byte *key) {
     DefineKeySeq(key);
 }
 uint64_t Khazard::DefineConstSeq(int r) {
-    byte *Seq = new byte[CHUNK];
+    uint64_t result = 0;
+    uint64_t temp = 0;
     for(int i = 0; i < 8; i++){
-        Seq[i] = (byte)GetSValue(int(8 * r + i));
+        temp = (uint64_t)GetSValue(byte((8 * r) + i));
+        temp <<= 8 * (ROUND - 1 - i);
+        result += temp;
     }
-    return ConvertTo64(Seq);
+    return result;
 }
 void Khazard::DefineKeySeq(byte *key) {
     byte *k1 = new byte[KEYSIZE/2];
@@ -56,19 +59,15 @@ void Khazard::DefineKeySeq(byte *key) {
         k1[i] = key[i];
         k2[i] = key[KEYSIZE/2 + i];
     }
-    Keys[0] = DefineKey(ConvertTo64(k1), ConvertTo64(k2), 0);
-    Keys[1] = DefineKey(ConvertTo64(k2), Keys[0], 1);
+    Keys[0] = RoundStep(DefineConstSeq(0), ConvertTo64(k2)) ^ ConvertTo64(k1);
+    std::cout<<"key0 = "<<Keys[0]<< std::endl;
+    Keys[1] = RoundStep(DefineConstSeq(1), Keys[0]) ^ ConvertTo64(k2);
+    //std::cout<<"key1 = "<<Keys[1]<< std::endl;
     for(int i = 2; i < ROUND; i++){
-        Keys[i] = DefineKey(Keys[i - 2], Keys[i - 1], i);
+        Keys[i] = RoundStep(DefineConstSeq(i), Keys[i - 1]) ^ Keys[i - 2];
+        //std::cout<<"key"<<i<<" = "<<Keys[i]<< std::endl;
     }
 }
-uint64_t Khazard::DefineKey(uint64_t bp, uint64_t p, int r) {
-    uint64_t a = DefineConstSeq(r) ^ (LinearMul(Substitution(p))) ^ bp;
-    std::cout<<a<<std::endl;
-    return DefineConstSeq(r) ^ (LinearMul(Substitution(p))) ^ bp;
-}
-
-
 byte Khazard::GetSValue(byte a){ return (byte)(SUBTABLE[(a >> 4)][(a & 0x0f)]);}
 void Khazard::PrintChunk(byte *chunk){
     for(int i = 0; i < CHUNK; i++ ){
@@ -81,16 +80,16 @@ byte Khazard::gAdd(byte a, byte b) {
     return a ^ b;
 }
 byte Khazard::gMul(byte a, byte b) {
-    byte p = 0; /* the product of the multiplication */
+    byte p = 0;
     while (a && b) {
-        if (b & 1) /* if b is odd, then add the corresponding a to p (final product = sum of all a's corresponding to odd b's) */
-            p ^= a; /* since we're in GF(2^m), addition is an XOR */
+        if (b & 1)
+            p ^= a;
 
-        if (a & 0x80) /* GF modulo: if a >= 128, then it will overflow when shifted left, so reduce */
-            a = (a << 1) ^ 0x11d; /* XOR with the primitive polynomial x^8 + x^4 + x^3 + x^2 + 1 (0b1_0001_1011) – you can change it but it must be irreducible */
+        if (a & 0x80)
+            a = byte((a << 1) ^ 0x11d);
         else
-            a <<= 1; /* equivalent to a*2 */
-        b >>= 1; /* equivalent to b // 2 */
+            a <<= 1;
+        b >>= 1;
     }
     return p;
 }
@@ -101,8 +100,7 @@ uint64_t Khazard::Substitution(uint64_t a) {
     byte temp = 0;//Вспомогательная переменная
     uint64_t result = 0;
     for(int i = 0; i < CHUNK; i++ ){
-        //a[i] = (byte)(SUBTABLE[(a[i] >> 4)][(a[i] & 0x0f)]);
-        temp = (a & oneByte) >> (i * 8);
+        temp = uint64_t((a & oneByte) >> (i * 8));
         result += (uint64_t(GetSValue(temp)) << (i * 8));
         oneByte <<= 8;
     }
@@ -115,7 +113,6 @@ uint64_t Khazard::LinearMul(uint64_t a) {
     uint64_t result = 0;
     for(int i = 0; i < CHUNK; i++) {
         for (int j = 0; j < CHUNK; j++) {
-            //temp = (a & oneByte) >> ((CHUNK - j - 1) * 8);
             temp = gAdd(temp, gMul((a & oneByte) >> (8 * j), HMATRIX[i][CHUNK - j - 1]));
             oneByte <<= 8;
         }
@@ -142,19 +139,32 @@ uint64_t Khazard::ConvertTo64(byte *a) {
 uint64_t Khazard::RoundStep(uint64_t key, uint64_t block) {
     return key ^ (LinearMul(Substitution(block)));
 }
-void Khazard::Encrypt(uint64_t block) {
+uint64_t Khazard::Encrypt(uint64_t block) {
     block ^= Keys[0];
     for(int i = 1; i < ROUND - 1; i++){
         block = RoundStep(Keys[i], block);
     }
     block = Keys[ROUND - 1] ^ Substitution(block);
-    std::cout << block;
+    /*for(int i = 0; i < ROUND; i++){
+        //block = RoundStep(Keys[i],block);
+        block = Substitution(block);
+        block = LinearMul(block);
+        block ^= Keys[i];
+    }*/
+    return block;
 }
-void Khazard::Decrypt(uint64_t block) {
-    block ^= Keys[ROUND - 1];
-    for(int i = ROUND - 2; i > 0; i--){
-        block = RoundStep(Keys[i], block);
+uint64_t Khazard::Decrypt(uint64_t block) {
+    uint64_t *temp = new uint64_t[ROUND];
+    for(int i = 0; i < ROUND; i++){
+        temp[i] = Keys[ROUND - i - 1];
     }
-    block = Keys[0] ^ Substitution(block);
-    std::cout << block;
+    for(int i = 0; i < ROUND; i++){
+        Keys[i] = temp[i];
+    }
+    /*for(int i = 0; i < ROUND; i++){
+        block ^= Keys[i];
+        block = LinearMul(block);
+        block = Substitution(block);
+    }*/
+    return Encrypt(block);
 }
