@@ -11,7 +11,6 @@ public:
     uint64_t Encrypt(uint64_t block);
     uint64_t Decrypt(uint64_t block);
     static uint64_t Substitution(uint64_t a);
-    static void PrintChunk(byte *chunk);
     static uint64_t LinearMul(uint64_t a);
     static uint64_t ConvertTo64(byte *a);
 

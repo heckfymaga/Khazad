@@ -53,14 +53,14 @@ uint64_t Khazard::DefineConstSeq(int r) {
     return result;
 }
 void Khazard::DefineKeySeq(byte *key) {
-    byte *k1 = new byte[KEYSIZE/2];
-    byte *k2 = new byte[KEYSIZE/2];
+    auto *k1 = new byte[KEYSIZE/2];
+    auto *k2 = new byte[KEYSIZE/2];
     for(int i = 0; i < KEYSIZE/2; i++){
         k1[i] = key[i];
         k2[i] = key[KEYSIZE/2 + i];
     }
     Keys[0] = RoundStep(DefineConstSeq(0), ConvertTo64(k2)) ^ ConvertTo64(k1);
-    std::cout<<"key0 = "<<Keys[0]<< std::endl;
+    //std::cout<<"key0 = "<<Keys[0]<< std::endl;
     Keys[1] = RoundStep(DefineConstSeq(1), Keys[0]) ^ ConvertTo64(k2);
     //std::cout<<"key1 = "<<Keys[1]<< std::endl;
     for(int i = 2; i < ROUND; i++){
@@ -69,11 +69,6 @@ void Khazard::DefineKeySeq(byte *key) {
     }
 }
 byte Khazard::GetSValue(byte a){ return (byte)(SUBTABLE[(a >> 4)][(a & 0x0f)]);}
-void Khazard::PrintChunk(byte *chunk){
-    for(int i = 0; i < CHUNK; i++ ){
-        std::cout << chunk[i];
-    }
-}
 
 // Вычисления в поле Галуа
 byte Khazard::gAdd(byte a, byte b) {
@@ -140,31 +135,31 @@ uint64_t Khazard::RoundStep(uint64_t key, uint64_t block) {
     return key ^ (LinearMul(Substitution(block)));
 }
 uint64_t Khazard::Encrypt(uint64_t block) {
-    block ^= Keys[0];
+    /*block ^= Keys[0];
     for(int i = 1; i < ROUND - 1; i++){
         block = RoundStep(Keys[i], block);
     }
-    block = Keys[ROUND - 1] ^ Substitution(block);
-    /*for(int i = 0; i < ROUND; i++){
+    block = Keys[ROUND - 1] ^ Substitution(block);*/
+    for(int i = 0; i < ROUND; i++){
         //block = RoundStep(Keys[i],block);
         block = Substitution(block);
         block = LinearMul(block);
         block ^= Keys[i];
-    }*/
+    }
     return block;
 }
 uint64_t Khazard::Decrypt(uint64_t block) {
-    uint64_t *temp = new uint64_t[ROUND];
+    auto *temp = new uint64_t[ROUND];
     for(int i = 0; i < ROUND; i++){
         temp[i] = Keys[ROUND - i - 1];
     }
     for(int i = 0; i < ROUND; i++){
         Keys[i] = temp[i];
     }
-    /*for(int i = 0; i < ROUND; i++){
+    for(int i = 0; i < ROUND; i++){
         block ^= Keys[i];
         block = LinearMul(block);
         block = Substitution(block);
-    }*/
-    return Encrypt(block);
+    }
+    return block;
 }
